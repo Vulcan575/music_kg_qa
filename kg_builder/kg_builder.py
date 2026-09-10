@@ -326,9 +326,16 @@ def main():
 
     builder.create_constraints()
 
-    raw_file = Path(__file__).parent.parent / "QQMusicSpider" / "QQMusicSpider" / "music"
+    # 爬虫产出的原始数据（JSONL），位于 QQMusicSpider/music
+    raw_file = Path(__file__).parent.parent / "QQMusicSpider" / "music"
     if raw_file.exists():
         builder.import_from_json(raw_file)
+    else:
+        # 路径不存在时必须显式报错：静默跳过会让人误以为"导入成功但图谱是空的"
+        print(f"[错误] 未找到爬虫原始数据：{raw_file}")
+        print("       请先运行爬虫采集数据（scrapy crawl qqmusic），或确认该文件是否存在。")
+        builder.close()
+        return
 
     stats = builder.get_stats()
     print("\n=== 图谱统计 ===")
