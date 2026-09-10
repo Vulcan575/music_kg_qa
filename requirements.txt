@@ -1,0 +1,6 @@
+flask==2.3.3
+flask-cors==4.0.0
+neo4j==4.4.13
+requests==2.31.0
+scrapy==2.11.0
+python-dotenv==1.0.0

@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - 音乐知识图谱</title>
+    <script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/axios@1.6.7/dist/axios.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- 顶部导航栏 --- */
+        .top-nav {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 0 30px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .top-nav .nav-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+        }
+        .top-nav .nav-title a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 13px;
+            margin-left: 15px;
+            font-weight: 400;
+        }
+        .top-nav .nav-title a:hover { text-decoration: underline; }
+        .top-nav .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .top-nav .admin-name {
+            color: #ddd;
+            font-size: 14px;
+        }
+        .top-nav .btn-logout {
+            padding: 6px 16px;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 6px;
+            background: transparent;
+            color: #ff6b6b;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+        .top-nav .btn-logout:hover {
+            background: rgba(255, 107, 107, 0.15);
+            border-color: #ff6b6b;
+        }
+
+        /* --- 主体布局 --- */
+        .main-layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* --- 左侧边栏 --- */
+        .sidebar {
+            width: 200px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255,255,255,0.1);
+            padding: 20px 0;
+            flex-shrink: 0;
+        }
+        .sidebar .menu-item {
+            padding: 14px 25px;
+            cursor: pointer;
+            color: #aaa;
+            font-size: 14px;
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+        }
+        .sidebar .menu-item:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.05);
+        }
+        .sidebar .menu-item.active {
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            border-left-color: #667eea;
+            font-weight: 600;
+        }
+
+        /* --- 主内容区 --- */
+        .content-area {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        /* --- 用户管理 --- */
+        .search-bar {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .search-bar input {
+            padding: 10px 15px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 14px;
+            width: 300px;
+            transition: all 0.3s;
+        }
+        .search-bar input::placeholder { color: rgba(255,255,255,0.4); }
+        .search-bar input:focus { outline: none; border-color: #667eea; }
+
+        .user-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .user-table th {
+            background: rgba(255,255,255,0.1);
+            padding: 14px 18px;
+            text-align: left;
+            font-size: 13px;
+            color: #aaa;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .user-table td {
+            padding: 12px 18px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            font-size: 14px;
+            color: #ddd;
+        }
+        .user-table tr:hover td {
+            background: rgba(255,255,255,0.03);
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-badge.normal { background: rgba(82, 196, 26, 0.2); color: #52c41a; }
+        .status-badge.disabled { background: rgba(255, 77, 79, 0.2); color: #ff4d4f; }
+
+        .btn-delete {
+            padding: 5px 14px;
+            border: none;
+            border-radius: 6px;
+            background: rgba(255, 77, 79, 0.2);
+            color: #ff4d4f;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        .btn-delete:hover {
+            background: rgba(255, 77, 79, 0.4);
+        }
+
+        .empty-tip {
+            text-align: center;
+            color: #666;
+            padding: 40px;
+            font-size: 14px;
+        }
+
+        /* --- 系统统计 --- */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+        .stat-card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 28px 24px;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        .stat-card .stat-icon {
+            font-size: 28px;
+            margin-bottom: 12px;
+        }
+        .stat-card .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .stat-card .stat-label {
+            font-size: 13px;
+            color: #aaa;
+        }
+        .stat-card:nth-child(1) .stat-value { color: #667eea; }
+        .stat-card:nth-child(2) .stat-value { color: #4ecdc4; }
+        .stat-card:nth-child(3) .stat-value { color: #f093fb; }
+        .stat-card:nth-child(4) .stat-value { color: #ffd93d; }
+    </style>
+</head>
+<body>
+    {% raw %}
+    <div id="app">
+        <!-- 顶部导航栏 -->
+        <div class="top-nav">
+            <div class="nav-title">
+                音乐知识图谱 - 管理后台
+                <a href="/qa">← 返回前台</a>
+            </div>
+            <div class="nav-right">
+                <span class="admin-name">👤 {{ adminName }}</span>
+                <button class="btn-logout" @click="handleLogout">退出登录</button>
+            </div>
+        </div>
+
+        <div class="main-layout">
+            <!-- 左侧边栏 -->
+            <div class="sidebar">
+                <div class="menu-item" :class="{ active: currentView === 'users' }" @click="currentView = 'users'">
+                    👥 用户管理
+                </div>
+                <div class="menu-item" :class="{ active: currentView === 'stats' }" @click="currentView = 'stats'">
+                    📊 系统统计
+                </div>
+            </div>
+
+            <!-- 主内容区 -->
+            <div class="content-area">
+                <!-- 用户管理视图 -->
+                <div v-if="currentView === 'users'">
+                    <h2 style="margin-bottom: 20px; font-size: 20px;">👥 用户管理</h2>
+                    <div class="search-bar">
+                        <input type="text" v-model="searchKeyword" placeholder="按用户名搜索...">
+                    </div>
+                    <table class="user-table">
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>用户名</th>
+                                <th>注册时间</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(user, index) in filteredUsers" :key="user.username">
+                                <td>{{ index + 1 }}</td>
+                                <td>{{ user.username }}</td>
+                                <td>{{ user.register_time }}</td>
+                                <td>
+                                    <span class="status-badge" :class="user.status === '正常' ? 'normal' : 'disabled'">
+                                        {{ user.status }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn-delete" @click="deleteUser(user.username)">删除</button>
+                                </td>
+                            </tr>
+                            <tr v-if="filteredUsers.length === 0">
+                                <td colspan="5" class="empty-tip">暂无用户数据</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 系统统计视图 -->
+                <div v-if="currentView === 'stats'">
+                    <h2 style="margin-bottom: 20px; font-size: 20px;">📊 系统统计</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-value">{{ stats.totalUsers }}</div>
+                            <div class="stat-label">总用户数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🆕</div>
+                            <div class="stat-value">{{ stats.todayUsers }}</div>
+                            <div class="stat-label">今日新增用户</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">💬</div>
+                            <div class="stat-value">{{ stats.totalQA }}</div>
+                            <div class="stat-label">总问答次数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🔗</div>
+                            <div class="stat-value">{{ stats.graphNodes }}</div>
+                            <div class="stat-label">知识图谱节点数</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    adminName: '',
+                    currentView: 'users',
+                    searchKeyword: '',
+                    users: [],
+                    stats: {
+                        totalUsers: 0,
+                        todayUsers: 0,
+                        totalQA: 0,
+                        graphNodes: 0
+                    }
+                }
+            },
+            computed: {
+                filteredUsers() {
+                    if (!this.searchKeyword) return this.users;
+                    const kw = this.searchKeyword.toLowerCase();
+                    return this.users.filter(u => u.username.toLowerCase().includes(kw));
+                }
+            },
+            methods: {
+                async checkLogin() {
+                    try {
+                        const res = await axios.get('/api/admin/info');
+                        if (res.data.logged_in) {
+                            this.adminName = res.data.username;
+                            return true;
+                        } else {
+                            window.location.href = '/admin/login';
+                            return false;
+                        }
+                    } catch (err) {
+                        window.location.href = '/admin/login';
+                        return false;
+                    }
+                },
+                async loadUsers() {
+                    try {
+                        const res = await axios.get('/api/admin/users');
+                        this.users = (res.data.users || []).map(u => ({
+                            username: u.username,
+                            register_time: u.create_time || u.created_at || '未知',
+                            status: u.status === 'disabled' ? '已禁用' : '正常'
+                        }));
+                    } catch (err) {
+                        console.error('加载用户列表失败', err);
+                    }
+                },
+                async loadStats() {
+                    try {
+                        const res = await axios.get('/api/admin/stats');
+                        this.stats.totalUsers = res.data.total_users || 0;
+                        this.stats.todayUsers = res.data.today_users || 0;
+                        this.stats.totalQA = res.data.total_qa || 0;
+                    } catch (err) {
+                        console.error('加载统计数据失败', err);
+                    }
+                    try {
+                        const res = await axios.get('/api/graph/stats');
+                        const s = res.data.singers || 0;
+                        const so = res.data.songs || 0;
+                        this.stats.graphNodes = s + so;
+                    } catch (err) {
+                        console.error('加载图谱统计失败', err);
+                    }
+                },
+                async deleteUser(username) {
+                    if (!confirm('确定要删除用户 "' + username + '" 吗？此操作不可恢复！')) return;
+                    try {
+                        const res = await axios.post('/api/admin/delete_user', { username });
+                        if (res.data.success) {
+                            this.users = this.users.filter(u => u.username !== username);
+                        } else {
+                            alert('删除失败: ' + (res.data.message || '未知错误'));
+                        }
+                    } catch (err) {
+                        alert('删除请求失败');
+                    }
+                },
+                async handleLogout() {
+                    try {
+                        await axios.post('/api/admin/logout');
+                    } catch (err) {
+                        // ignore
+                    }
+                    window.location.href = '/admin/login';
+                }
+            },
+            async mounted() {
+                const loggedIn = await this.checkLogin();
+                if (!loggedIn) return;
+                this.loadUsers();
+                this.loadStats();
+            }
+        }).mount('#app');
+    </script>
+    {% endraw %}
+</body>
+</html>

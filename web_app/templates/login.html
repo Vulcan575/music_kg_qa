@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 音乐知识图谱问答</title>
+    <script src="https://unpkg.com/axios@1.6.8/dist/axios.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #6c5ce7;
+            --text-color: #2d3436;
+            --glass-bg: rgba(255, 255, 255, 0.9);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* --- 背景装饰元素 --- */
+        .bg-note {
+            position: absolute;
+            color: rgba(108, 92, 231, 0.1);
+            font-size: 5rem;
+            z-index: 0;
+            animation: float 6s infinite ease-in-out;
+        }
+        .note-1 { top: 10%; left: 10%; animation-delay: 0s; }
+        .note-2 { bottom: 15%; right: 10%; animation-delay: 2s; font-size: 8rem; }
+        .note-3 { top: 40%; right: 30%; animation-delay: 4s; font-size: 3rem; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        /* --- 登录卡片 --- */
+        .login-container {
+            background: var(--glass-bg);
+            padding: 50px 60px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            width: 480px;
+            z-index: 10;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+
+        .login-header h2 {
+            color: var(--text-color);
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .login-header p {
+            color: #636e72;
+            margin-bottom: 40px;
+            font-size: 14px;
+        }
+
+        .form-group { margin-bottom: 25px; text-align: left; }
+        .form-group label { display: block; margin-bottom: 8px; color: #636e72; font-size: 14px; }
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #dfe6e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        .form-group input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(90deg, #6c5ce7, #a29bfe);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 10px;
+        }
+        .btn-login:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(108, 92, 231, 0.3); }
+        .btn-login:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        .login-error {
+            color: #e74c3c;
+            font-size: 0.85rem;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .footer-links { margin-top: 20px; font-size: 13px; }
+        .footer-links a { color: var(--primary-color); text-decoration: none; }
+        .footer-links a:hover { text-decoration: underline; }
+
+        /* --- 右上角播放器 --- */
+        .music-player {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            width: 320px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .player-info { display: flex; align-items: center; gap: 15px; }
+        .cover-img {
+            width: 60px; height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        /* 唱片旋转动画 */
+        .cover-img.rotate {
+            animation: spin 10s linear infinite;
+        }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .song-details { flex: 1; overflow: hidden; }
+        .song-title { font-weight: bold; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .song-artist { font-size: 12px; color: #b2bec3; margin-top: 4px; }
+
+        /* 进度条 */
+        .progress-container { width: 100%; height: 6px; background: #dfe6e9; border-radius: 3px; cursor: pointer; position: relative; }
+        .progress-bar { height: 100%; background: var(--primary-color); width: 0%; border-radius: 3px; transition: width 0.1s linear; }
+        .progress-bar::after {
+            content: ''; position: absolute; right: -5px; top: -4px;
+            width: 12px; height: 12px; background: white; border: 2px solid var(--primary-color);
+            border-radius: 50%; opacity: 0; transition: opacity 0.2s;
+        }
+        .progress-container:hover .progress-bar::after { opacity: 1; }
+
+        /* 控制按钮 */
+        .player-controls { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
+        .control-btn { background: none; border: none; cursor: pointer; color: #636e72; font-size: 18px; transition: color 0.2s; padding: 4px 8px; }
+        .control-btn:hover { color: var(--primary-color); }
+        .play-btn { font-size: 24px; color: var(--primary-color); }
+
+        /* 歌词区域 */
+        #lyrics-box {
+            height: 80px;
+            overflow-y: auto;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+            scrollbar-width: none;
+        }
+        #lyrics-box::-webkit-scrollbar { display: none; }
+        .lyric-line { transition: all 0.3s; opacity: 0.5; padding: 3px 0; }
+
+        /* 当前播放歌词高亮 */
+        .lyric-line.active {
+            color: var(--primary-color);
+            font-weight: bold;
+            font-size: 14px;
+            opacity: 1;
+            transition: all 0.3s ease;
+        }
+
+        /* 音量控制 */
+        .volume-control { display: flex; align-items: center; gap: 5px; justify-content: flex-end; }
+        .volume-slider { width: 80px; height: 4px; -webkit-appearance: none; background: #dfe6e9; border-radius: 2px; }
+        .volume-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: var(--primary-color); border-radius: 50%; cursor: pointer; }
+
+    </style>
+</head>
+<body>
+
+    <!-- 背景装饰音符 -->
+    <div class="bg-note note-1">♪</div>
+    <div class="bg-note note-2">♫</div>
+    <div class="bg-note note-3">♩</div>
+
+    <!-- 登录模块 -->
+    <div class="login-container">
+        <div class="login-header">
+            <h2>欢迎回来</h2>
+            <p>基于知识图谱的音乐智能问答系统</p>
+        </div>
+        <div id="loginError" class="login-error"></div>
+        <form id="loginForm">
+            <div class="form-group">
+                <label>账号</label>
+                <input type="text" id="username" placeholder="请输入您的账号" required>
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input type="password" id="password" placeholder="请输入密码" required>
+            </div>
+            <button type="submit" class="btn-login" id="loginBtn">登 录</button>
+        </form>
+        <div class="footer-links">
+            还没有账号？ <a href="/register">立即注册</a> | <a href="/admin/login">管理员入口</a>
+        </div>
+    </div>
+
+    <!-- 右上角音乐播放器 -->
+    <div class="music-player">
+        <div class="player-info">
+            <img src="{{ url_for('static', filename='赵雷-jpg.jpg') }}" alt="Cover" class="cover-img" id="coverImg" onerror="this.src='https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=200&h=200&fit=crop'">
+            <div class="song-details">
+                <div class="song-title" id="songTitle">正在加载...</div>
+                <div class="song-artist" id="songArtist">--</div>
+            </div>
+        </div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <div class="player-controls">
+            <button class="control-btn" id="prevBtn">⏮</button>
+            <button class="control-btn play-btn" id="playBtn">▶</button>
+            <button class="control-btn" id="nextBtn">⏭</button>
+            <div class="volume-control">
+                <span style="font-size:12px">🔊</span>
+                <input type="range" min="0" max="100" step="1" value="50" class="volume-slider" id="volumeSlider">
+            </div>
+        </div>
+
+        <div id="lyrics-box">
+            <p class="lyric-line active">暂无歌词</p>
+        </div>
+    </div>
+
+    <script>
+    // ====== 登录逻辑 ======
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('loginBtn');
+        const errorEl = document.getElementById('loginError');
+        errorEl.style.display = 'none';
+
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+
+        if (!username || !password) {
+            errorEl.textContent = '请填写账号和密码';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = '登录中...';
+
+        try {
+            const res = await axios.post('/api/login', { username, password });
+            if (res.data.success) {
+                window.location.href = res.data.redirect;
+            } else {
+                errorEl.textContent = res.data.message || '登录失败';
+                errorEl.style.display = 'block';
+            }
+        } catch (err) {
+            errorEl.textContent = '登录失败，请检查网络';
+            errorEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '登 录';
+        }
+    });
+
+    // ====== 音乐播放器 ======
+
+    // 播放列表 (文件名与 static 目录实际文件严格对应)
+    const playlist = [
+        {
+            title: "程艾影",
+            artist: "赵雷",
+            src: "{{ url_for('static', filename='趙雷 - 程艾影.mp3') }}",
+            lrc: "{{ url_for('static', filename='赵雷 - 程艾影.lrc.txt') }}",
+            cover: "{{ url_for('static', filename='赵雷-jpg.jpg') }}"
+        },
+        {
+            title: "朵",
+            artist: "赵雷",
+            src: "{{ url_for('static', filename='趙雷 - 朵.mp3') }}",
+            lrc: "{{ url_for('static', filename='赵雷 - 朵.lrc.txt') }}",
+            cover: "{{ url_for('static', filename='赵雷-jpg.jpg') }}"
+        },
+        {
+            title: "民谣",
+            artist: "赵雷",
+            src: "{{ url_for('static', filename='趙雷 - 民謠.mp3') }}",
+            lrc: "{{ url_for('static', filename='赵雷 - 民谣.lrc.txt') }}",
+            cover: "{{ url_for('static', filename='赵雷-jpg.jpg') }}"
+        },
+        {
+            title: "南方姑娘",
+            artist: "赵雷",
+            src: "{{ url_for('static', filename='趙雷 - 南方姑娘.mp3') }}",
+            lrc: "{{ url_for('static', filename='赵雷 - 南方姑娘.lrc.txt') }}",
+            cover: "{{ url_for('static', filename='赵雷-jpg.jpg') }}"
+        },
+        {
+            title: "我记得",
+            artist: "赵雷",
+            src: "{{ url_for('static', filename='趙雷 - 我記得.mp3') }}",
+            lrc: "{{ url_for('static', filename='赵雷 - 我记得.lrc.txt') }}",
+            cover: "{{ url_for('static', filename='赵雷-jpg.jpg') }}"
+        },
+        {
+            title: "青花瓷",
+            artist: "周杰伦",
+            src: "{{ url_for('static', filename='周杰倫 - 青花瓷.mp3') }}",
+            lrc: "{{ url_for('static', filename='周杰伦 - 青花瓷.lrc.txt') }}",
+            cover: "{{ url_for('static', filename='周杰伦.jpg.jpg') }}"
+        },
+        {
+            title: "烟花易冷",
+            artist: "周杰伦",
+            src: "{{ url_for('static', filename='周杰倫 - 煙花易冷.mp3') }}",
+            lrc: "{{ url_for('static', filename='周杰伦 - 烟花易冷.lrc.txt') }}",
+            cover: "{{ url_for('static', filename='周杰伦.jpg.jpg') }}"
+        }
+    ];
+
+    let currentIndex = 0;
+    let isPlaying = false;
+    const audio = new Audio();
+    let lyrics = [];
+
+    // DOM 元素 (ID 与 HTML 完全一致)
+    const playBtn = document.getElementById('playBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const songTitle = document.getElementById('songTitle');
+    const songArtist = document.getElementById('songArtist');
+    const coverImg = document.getElementById('coverImg');
+    const progressBar = document.getElementById('progressBar');
+    const progressContainer = document.getElementById('progressContainer');
+    const lyricsBox = document.getElementById('lyrics-box');
+    const volumeSlider = document.getElementById('volumeSlider');
+
+    // 初始化
+    loadSong(currentIndex);
+    audio.volume = 0.5;
+
+    // --- 跨页面播放状态恢复 ---
+    (function restorePlayerState() {
+        const saved = sessionStorage.getItem('musicPlayerState');
+        if (saved) {
+            try {
+                const state = JSON.parse(saved);
+                currentIndex = state.currentIndex || 0;
+                loadSong(currentIndex);
+                audio.volume = state.volume || 0.5;
+                volumeSlider.value = Math.round(audio.volume * 100);
+                if (state.wasPlaying && state.currentTime) {
+                    audio.currentTime = state.currentTime;
+                    // 等音频可播放后自动恢复
+                    audio.addEventListener('canplay', function onCanPlay() {
+                        audio.removeEventListener('canplay', onCanPlay);
+                        playSong();
+                    }, { once: true });
+                }
+            } catch(e) { console.log('恢复播放状态失败', e); }
+        }
+    })();
+
+    // 页面卸载前保存播放状态
+    window.addEventListener('beforeunload', function() {
+        sessionStorage.setItem('musicPlayerState', JSON.stringify({
+            currentIndex: currentIndex,
+            currentTime: audio.currentTime || 0,
+            wasPlaying: isPlaying,
+            volume: audio.volume
+        }));
+    });
+
+    // --- 核心功能函数 ---
+
+    function loadSong(index) {
+        const song = playlist[index];
+        songTitle.innerText = song.title;
+        songArtist.innerText = song.artist;
+        audio.src = song.src;
+        coverImg.src = song.cover;
+
+        // 重置进度条 (div 用 style.width)
+        progressBar.style.width = '0%';
+        lyricsBox.innerHTML = '<p style="margin-top:20px; color:#aaa;">暂无歌词</p>';
+        lyrics = [];
+
+        // 异步加载歌词
+        fetch(song.lrc)
+            .then(response => {
+                if (!response.ok) throw new Error("歌词文件不存在");
+                return response.text();
+            })
+            .then(lrcText => {
+                parseLRC(lrcText);
+            })
+            .catch(error => {
+                console.log("歌词加载失败:", error);
+                lyricsBox.innerHTML = '<p style="margin-top:20px; color:#aaa;">纯音乐欣赏</p>';
+            });
+    }
+
+    function togglePlay() {
+        if (isPlaying) {
+            pauseSong();
+        } else {
+            playSong();
+        }
+    }
+
+    function playSong() {
+        isPlaying = true;
+        playBtn.innerText = '⏸';
+        coverImg.classList.add('rotate');
+        audio.play().catch(() => { pauseSong(); });
+    }
+
+    function pauseSong() {
+        isPlaying = false;
+        audio.pause();
+        playBtn.innerText = '▶';
+        coverImg.classList.remove('rotate');
+    }
+
+    function prevSong() {
+        currentIndex--;
+        if (currentIndex < 0) {
+            currentIndex = playlist.length - 1;
+        }
+        loadSong(currentIndex);
+        if (isPlaying) playSong();
+    }
+
+    function nextSong() {
+        currentIndex++;
+        if (currentIndex > playlist.length - 1) {
+            currentIndex = 0;
+        }
+        loadSong(currentIndex);
+        if (isPlaying) playSong();
+    }
+
+    function updateProgress(e) {
+        const { duration, currentTime } = e.srcElement;
+        if (isNaN(duration)) return;
+        const progressPercent = (currentTime / duration) * 100;
+        progressBar.style.width = progressPercent + '%';
+        syncLyrics(currentTime);
+    }
+
+    // 点击进度条跳转
+    progressContainer.addEventListener('click', function(e) {
+        const width = this.clientWidth;
+        const clickX = e.offsetX;
+        const duration = audio.duration;
+        if (isNaN(duration)) return;
+        audio.currentTime = (clickX / width) * duration;
+    });
+
+    // 音量控制 (range 0-100, audio.volume 0-1)
+    volumeSlider.addEventListener('input', function() {
+        audio.volume = this.value / 100;
+    });
+
+    // --- 歌词解析与同步 ---
+
+    function parseLRC(lrcString) {
+        lyrics = [];
+        lyricsBox.innerHTML = '';
+
+        const lines = lrcString.split('\n').filter(line => line.trim() !== '');
+
+        lines.forEach(line => {
+            const timeReg = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
+            const match = timeReg.exec(line);
+
+            if (match) {
+                const minutes = parseInt(match[1], 10);
+                const seconds = parseInt(match[2], 10);
+                const milliseconds = parseInt(match[3], 10);
+                const time = minutes * 60 + seconds + milliseconds / 100;
+                const text = line.replace(timeReg, '').trim();
+
+                if (text) {
+                    lyrics.push({ time, text });
+                    const p = document.createElement('p');
+                    p.innerText = text;
+                    p.className = 'lyric-line';
+                    p.dataset.time = time;
+                    lyricsBox.appendChild(p);
+                }
+            }
+        });
+    }
+
+    function syncLyrics(currentTime) {
+        if (lyrics.length === 0) return;
+
+        let activeIndex = -1;
+        for (let i = 0; i < lyrics.length; i++) {
+            if (currentTime >= lyrics[i].time) {
+                activeIndex = i;
+            } else {
+                break;
+            }
+        }
+
+        if (activeIndex !== -1) {
+            const allLines = document.querySelectorAll('.lyric-line');
+            allLines.forEach(line => line.classList.remove('active'));
+
+            const activeLine = allLines[activeIndex];
+            if (activeLine) {
+                activeLine.classList.add('active');
+                const boxHeight = lyricsBox.clientHeight;
+                const lineTop = activeLine.offsetTop;
+                lyricsBox.scrollTop = lineTop - boxHeight / 2 + activeLine.clientHeight / 2;
+            }
+        }
+    }
+
+    // --- 事件绑定 ---
+    playBtn.addEventListener('click', togglePlay);
+    prevBtn.addEventListener('click', prevSong);
+    nextBtn.addEventListener('click', nextSong);
+    audio.addEventListener('timeupdate', updateProgress);
+    audio.addEventListener('ended', nextSong);
+
+    </script>
+</body>
+</html>
